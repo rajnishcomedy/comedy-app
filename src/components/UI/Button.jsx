@@ -27,6 +27,7 @@ export const Button = ({ children, onClick, variant = "default", size = "md", di
     ghost:    { background: "transparent", borderColor: "transparent", color: "var(--text2)" },
     danger:   { background: "rgba(255, 76, 76, 0.1)", borderColor: "rgba(255, 76, 76, 0.3)", color: "var(--red)" },
     accent:   { background: "rgba(200, 241, 53, 0.1)", borderColor: "rgba(200, 241, 53, 0.3)", color: "var(--accent)" },
+    outline:  { background: "rgba(255, 255, 255, 0.04)", borderColor: "var(--border2)", color: "var(--text2)" },
   };
 
   return (

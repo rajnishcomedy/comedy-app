@@ -6,7 +6,11 @@ export const Select = ({ label, value, onChange, options, style = {} }) => (
             </label>
         )}
         <select value={value} onChange={e => onChange(e.target.value)}>
-            {options.map(o => <option key={o} value={o}>{o}</option>)}
+            {options.map(o => {
+                const val = typeof o === 'object' ? o.value : o;
+                const lab = typeof o === 'object' ? (o.label || o.value) : o;
+                return <option key={val} value={val}>{lab}</option>;
+            })}
         </select>
     </div>
 );

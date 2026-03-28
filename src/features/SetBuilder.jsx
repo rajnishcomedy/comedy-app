@@ -2,55 +2,69 @@ import { useState } from 'react';
 import { useLocalStorage } from '../hooks/useLocalStorage';
 import { Button, StatusTag, EmptyState } from '../components/UI';
 import { killRate, KEYS, uid, today } from '../utils';
-import { FileText, Plus, X, ChevronUp, ChevronDown, LayoutList } from 'lucide-react';
+import { FileText, Plus, X, LayoutList, Clock, GripVertical } from 'lucide-react';
+import { DragDropContext, Droppable, Draggable } from '@hello-pangea/dnd';
 
-export default function SetBuilder({ jokes }) {
-    const [sets, setSets] = useLocalStorage(KEYS.sets, []);
+export default function SetBuilder({ jokes, sets = [], addSet, updateSet, deleteSet, toast }) {
     const [active, setActiveSet] = useState(null);
     const [newName, setNewName] = useState("");
 
-    const createSet = () => {
+    const createSet = async () => {
         if (!newName.trim()) return;
-        const s = { id: uid(), name: newName, slots: [], created: today() };
-        setSets(ss => [...ss, s]);
-        setActiveSet(s.id);
-        setNewName("");
+        try {
+            const newId = await addSet({ name: newName, slots: [], created: today() });
+            if (newId) setActiveSet(newId);
+            setNewName("");
+        } catch (err) {
+            toast?.error("Failed to create set.");
+        }
     };
 
     const currentSet = sets.find(s => s.id === active);
 
     const addJoke = (jid) => {
         if (!currentSet || currentSet.slots.includes(jid)) return;
-        setSets(ss => ss.map(s => s.id === active ? { ...s, slots: [...s.slots, jid] } : s));
+        updateSet(active, { slots: [...currentSet.slots, jid] });
     };
 
-    const removeJoke = (jid) => setSets(ss => ss.map(s => s.id === active ? { ...s, slots: s.slots.filter(id => id !== jid) } : s));
-
-    const moveJoke = (idx, dir) => {
+    const removeJoke = (jid) => {
         if (!currentSet) return;
-        const slots = [...currentSet.slots];
-        const ni = idx + dir;
-        if (ni < 0 || ni >= slots.length) return;
-        [slots[idx], slots[ni]] = [slots[ni], slots[idx]];
-        setSets(ss => ss.map(s => s.id === active ? { ...s, slots } : s));
+        updateSet(active, { slots: currentSet.slots.filter(id => id !== jid) });
+    };
+
+    const handleDragEnd = (result) => {
+        if (!result.destination || !currentSet) return;
+        const sourceIndex = result.source.index;
+        const destIndex = result.destination.index;
+        if (sourceIndex === destIndex) return;
+
+        const slots = Array.from(currentSet.slots);
+        const [reorderedItem] = slots.splice(sourceIndex, 1);
+        slots.splice(destIndex, 0, reorderedItem);
+        
+        updateSet(active, { slots });
     };
 
     const delSet = (id) => {
-        setSets(ss => ss.filter(s => s.id !== id));
+        deleteSet(id);
         if (active === id) setActiveSet(null);
     };
 
     const slotsWithData = currentSet ? currentSet.slots.map(id => jokes.find(j => j.id === id)).filter(Boolean) : [];
+    
+    const totalSeconds = slotsWithData.reduce((acc, j) => acc + (j.duration || 0), 0);
+    const fmtRuntime = `${Math.floor(totalSeconds / 60)}m ${totalSeconds % 60}s`;
+    const fmtDuration = (s) => `${Math.floor(s / 60)}m ${s % 60}s`;
 
     const energyColor = j => j.status === "Stage-Ready" && j.score >= 8 ? "var(--green)" :
         j.status === "Stage-Ready" ? "var(--accent)" :
             j.status === "Test Carefully" ? "var(--red)" : "var(--amber)";
 
     return (
-        <div style={{ display: "flex", height: "100%", overflow: "hidden" }}>
+        <div className="setbuilder-container">
 
             {/* Sidebar - Set List */}
-            <div style={{ width: 260, borderRight: "1px solid var(--border)", display: "flex", flexDirection: "column", background: "var(--bg2)" }}>
+            <div className="setbuilder-sidebar">
                 <div style={{ padding: "20px 16px 12px", borderBottom: "1px solid var(--border)" }}>
                     <div className="section-header" style={{ marginBottom: 12 }}>My Sets</div>
                     <div style={{ display: "flex", gap: 8 }}>
@@ -106,7 +120,9 @@ export default function SetBuilder({ jokes }) {
                     <div style={{ padding: "20px 24px", borderBottom: "1px solid var(--border)", display: "flex", flexDirection: "column", gap: 16 }}>
                         <div style={{ display: "flex", gap: 12, alignItems: "center" }}>
                             <span style={{ fontFamily: "var(--mono)", fontSize: 18, fontWeight: 600, color: "var(--accent)" }}>{currentSet.name}</span>
-                            <span className="pill">~{slotsWithData.length} min</span>
+                            <span className="pill" style={{ background: totalSeconds > 60 * 15 ? 'var(--red-light)' : undefined, color: totalSeconds > 60 * 15 ? 'var(--red)' : undefined }}>
+                                {fmtRuntime}
+                            </span>
                             <span className="pill">{slotsWithData.length} items</span>
                         </div>
 
@@ -127,43 +143,70 @@ export default function SetBuilder({ jokes }) {
                     <div style={{ flex: 1, overflow: "hidden", display: "flex" }}>
 
                         {/* Main Editor */}
-                        <div style={{ flex: 1, overflowY: "auto", padding: 24 }} className="scrollable">
-                            {slotsWithData.length === 0 && <EmptyState icon={LayoutList} text="Empty Setlist" sub="Click jokes from the right panel to add them to this set." />}
-
-                            {slotsWithData.map((j, i) => (
-                                <div key={j.id} className="card" style={{ marginBottom: 16, display: "flex", gap: 16, alignItems: "center", padding: "16px 20px" }}>
-                                    <div style={{ display: "flex", flexDirection: "column", gap: 4, alignItems: "center", paddingRight: 12, borderRight: "1px solid var(--border)" }}>
-                                        <span style={{ fontFamily: "var(--mono)", fontSize: 14, color: "var(--accent)", fontWeight: 600, width: 24, textAlign: "center" }}>{i + 1}</span>
-                                        <button onClick={() => moveJoke(i, -1)} disabled={i === 0} style={{ background: "none", border: "none", color: i === 0 ? "var(--border)" : "var(--text2)", cursor: i === 0 ? "default" : "pointer", padding: 2 }}>
-                                            <ChevronUp size={16} />
-                                        </button>
-                                        <button onClick={() => moveJoke(i, 1)} disabled={i === slotsWithData.length - 1} style={{ background: "none", border: "none", color: i === slotsWithData.length - 1 ? "var(--border)" : "var(--text2)", cursor: i === slotsWithData.length - 1 ? "default" : "pointer", padding: 2 }}>
-                                            <ChevronDown size={16} />
-                                        </button>
-                                    </div>
-
-                                    <div style={{ flex: 1, minWidth: 0 }}>
-                                        <div style={{ display: "flex", gap: 10, alignItems: "center", marginBottom: 8 }}>
-                                            <span className="pill" style={{ fontSize: 11 }}>{j.cat}</span>
-                                            <StatusTag status={j.status} />
-                                            <span style={{ fontSize: 12, fontFamily: "var(--mono)", color: "var(--text3)", marginLeft: "auto", fontWeight: 500 }}>{killRate(j)}% kill</span>
-                                        </div>
-                                        <div style={{ fontSize: 14, color: "var(--text)", lineHeight: 1.5, marginBottom: 4, fontWeight: 500 }}>{j.setup}</div>
-                                        <div style={{ fontSize: 13, color: "var(--text2)", borderLeft: "2px solid var(--accent)", paddingLeft: 10, lineHeight: 1.5 }}>
-                                            {j.punch.slice(0, 100)}{j.punch.length > 100 ? "…" : ""}
-                                        </div>
-                                    </div>
-
-                                    <button
-                                        onClick={() => removeJoke(j.id)}
-                                        style={{ background: "rgba(255, 76, 76, 0.1)", border: "1px solid rgba(255, 76, 76, 0.2)", color: "var(--red)", width: 32, height: 32, borderRadius: "50%", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", transition: "all var(--trans-fast)" }}
-                                        className="hover-lift"
+                        <DragDropContext onDragEnd={handleDragEnd}>
+                            <Droppable droppableId="setlist">
+                                {(provided) => (
+                                    <div 
+                                        style={{ flex: 1, overflowY: "auto", padding: 24 }} 
+                                        className="scrollable"
+                                        {...provided.droppableProps}
+                                        ref={provided.innerRef}
                                     >
-                                        <X size={16} />
-                                    </button>
-                                </div>
-                            ))}
-                        </div>
+                                        {slotsWithData.length === 0 && <EmptyState icon={LayoutList} text="Empty Setlist" sub="Drag or click jokes from the right panel to add them to this set." />}
+
+                                        {slotsWithData.map((j, i) => (
+                                            <Draggable key={j.id} draggableId={j.id} index={i}>
+                                                {(provided, snapshot) => (
+                                                    <div 
+                                                        className="card" 
+                                                        ref={provided.innerRef}
+                                                        {...provided.draggableProps}
+                                                        style={{ 
+                                                            marginBottom: 16, display: "flex", gap: 16, alignItems: "center", padding: "16px 20px",
+                                                            boxShadow: snapshot.isDragging ? "0 10px 30px rgba(0,0,0,0.8)" : undefined,
+                                                            borderColor: snapshot.isDragging ? "var(--accent)" : undefined,
+                                                            ...provided.draggableProps.style
+                                                        }}
+                                                    >
+                                                        <div 
+                                                            {...provided.dragHandleProps} 
+                                                            style={{ display: "flex", flexDirection: "column", gap: 4, alignItems: "center", paddingRight: 12, borderRight: "1px solid var(--border)", cursor: "grab", color: "var(--text3)" }}
+                                                        >
+                                                            <GripVertical size={20} />
+                                                            <span style={{ fontFamily: "var(--mono)", fontSize: 13, fontWeight: 600 }}>{i + 1}</span>
+                                                        </div>
+
+                                                        <div style={{ flex: 1, minWidth: 0 }}>
+                                                            <div style={{ display: "flex", gap: 10, alignItems: "center", marginBottom: 8 }}>
+                                                                <span className="pill" style={{ fontSize: 11 }}>{j.cat}</span>
+                                                                <StatusTag status={j.status} />
+                                                                <span style={{ fontSize: 11, color: "var(--text3)", display: "flex", alignItems: "center", gap: 4 }}>
+                                                                    <Clock size={12} /> {fmtDuration(j.duration || 0)}
+                                                                </span>
+                                                                <span style={{ fontSize: 12, fontFamily: "var(--mono)", color: "var(--text3)", marginLeft: "auto", fontWeight: 500 }}>{killRate(j)}% kill</span>
+                                                            </div>
+                                                            <div style={{ fontSize: 14, color: "var(--text)", lineHeight: 1.5, marginBottom: 4, fontWeight: 500 }}>{j.setup}</div>
+                                                            <div style={{ fontSize: 13, color: "var(--text2)", borderLeft: "2px solid var(--accent)", paddingLeft: 10, lineHeight: 1.5 }}>
+                                                                {j.punch.slice(0, 100)}{j.punch.length > 100 ? "…" : ""}
+                                                            </div>
+                                                        </div>
+
+                                                        <button
+                                                            onClick={() => removeJoke(j.id)}
+                                                            style={{ background: "rgba(255, 76, 76, 0.1)", border: "1px solid rgba(255, 76, 76, 0.2)", color: "var(--red)", width: 32, height: 32, borderRadius: "50%", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", transition: "all var(--trans-fast)" }}
+                                                            className="hover-lift"
+                                                        >
+                                                            <X size={16} />
+                                                        </button>
+                                                    </div>
+                                                )}
+                                            </Draggable>
+                                        ))}
+                                        {provided.placeholder}
+                                    </div>
+                                )}
+                            </Droppable>
+                        </DragDropContext>
 
                         {/* Right Panel - Available Jokes */}
                         <div style={{ width: 300, borderLeft: "1px solid var(--border)", background: "var(--bg2)", display: "flex", flexDirection: "column" }}>

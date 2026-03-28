@@ -190,7 +190,7 @@ export default function PremiseDrill({ setJokes }) {
                         <span style={{ color: "var(--amber)", fontWeight: 600 }}>Helitzer Method:</span> Fill List A (your world) and List B (anything random). Force every A×B collision into a premise. The stranger the pair, the deeper you dig to find the angle. Let the brain panic and connect them.
                     </div>
 
-                    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 24, marginBottom: 24 }}>
+                    <div className="grid-half" style={{ gap: 24, marginBottom: 24 }}>
                         <div className="card" style={{ padding: 24 }}>
                             <div className="section-header" style={{ color: "var(--blue)" }}>List A — The Premise World</div>
                             <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
@@ -212,7 +212,7 @@ export default function PremiseDrill({ setJokes }) {
 
                     <div className="card" style={{ padding: 24 }}>
                         <div className="section-header" style={{ color: "var(--amber)" }}><Shuffle size={14} /> Forced Collisions</div>
-                        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 20 }}>
+                        <div className="grid-half" style={{ gap: 20 }}>
                             {listA.map((a, i) => (
                                 <div key={i} style={{ display: "flex", flexDirection: "column", gap: 8 }}>
                                     <div style={{ fontSize: 13, fontFamily: "var(--mono)", color: "var(--text3)", fontWeight: 600, display: "flex", alignItems: "center", gap: 8 }}>

@@ -1,5 +1,12 @@
+import { useMemo } from 'react';
 import { killRate } from '../utils';
 import { Target, AlertTriangle, BarChart as BarChartIcon } from 'lucide-react';
+
+const getPerfHeatmap = (ws) => {
+    if (ws >= 1.5) return 'linear-gradient(135deg, rgba(16, 185, 129, 0.15) 0%, var(--bg2) 100%)';
+    if (ws < 0.5) return 'linear-gradient(135deg, rgba(255, 76, 76, 0.1) 0%, var(--bg2) 100%)';
+    return 'var(--bg2)';
+};
 
 export default function Analytics({ jokes, shows }) {
     const cats = [...new Set(jokes.map(j => j.cat))];
@@ -20,6 +27,25 @@ export default function Analytics({ jokes, shows }) {
 
     const totalShows = shows.length;
     const avgScore = shows.length ? (shows.reduce((a, s) => a + s.score, 0) / shows.length).toFixed(1) : "—";
+
+    // Calculate Weighted Performance from Show Results
+    const jokePerformance = useMemo(() => {
+        const stats = {};
+        shows.forEach(s => {
+            if (!s.results) return;
+            Object.entries(s.results).forEach(([jid, score]) => {
+                if (!stats[jid]) stats[jid] = { total: 0, count: 0 };
+                stats[jid].total += score;
+                stats[jid].count += 1;
+            });
+        });
+
+        return jokes.map(j => {
+            const st = stats[j.id];
+            const weightedScore = st ? (st.total / st.count).toFixed(2) : 0;
+            return { ...j, weightedScore: parseFloat(weightedScore), logCount: st?.count || 0 };
+        }).filter(j => j.logCount > 0).sort((a, b) => b.weightedScore - a.weightedScore);
+    }, [jokes, shows]);
 
     // Custom visual component for bars
     const VisualBar = ({ percent, color }) => (
@@ -67,7 +93,30 @@ export default function Analytics({ jokes, shows }) {
                 </div>
             </div>
 
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 24, marginBottom: 32 }}>
+            <div className="card" style={{ marginBottom: 32, padding: 32 }}>
+                <div className="section-header" style={{ marginBottom: 24 }}><Target size={16} /> Performance Impact per Bit</div>
+                <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(300px, 1fr))", gap: 20 }}>
+                    {jokePerformance.slice(0, 6).map(j => (
+                        <div key={j.id} className="hover-lift" style={{ padding: 18, background: getPerfHeatmap(j.weightedScore), borderRadius: 12, border: "1px solid var(--border)", display: "flex", flexDirection: "column", gap: 12, transition: "transform var(--trans-base)" }}>
+                            <div style={{ fontSize: 13, fontWeight: 500, color: "var(--text)", lineHeight: 1.4 }} className="truncate-2">{j.setup}</div>
+                            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: "auto" }}>
+                                <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+                                    <span style={{ fontSize: 11, color: "var(--text3)", fontWeight: 500 }}>{j.logCount} SHOWS</span>
+                                    {j.weightedScore >= 1.5 ? <span style={{ fontSize: 10, background: "var(--green)", color: "#000", padding: "2px 6px", borderRadius: 4, fontWeight: 700 }}>ELITE</span> :
+                                     j.weightedScore >= 0.5 ? <span style={{ fontSize: 10, background: "var(--accent)", color: "#000", padding: "2px 6px", borderRadius: 4, fontWeight: 700 }}>SOLID</span> :
+                                     <span style={{ fontSize: 10, background: "rgba(255, 76, 76, 0.15)", color: "var(--red)", border: "1px solid rgba(255, 76, 76, 0.2)", padding: "2px 6px", borderRadius: 4, fontWeight: 700 }}>FIX</span>}
+                                </div>
+                                <div style={{ fontFamily: "var(--mono)", fontSize: 20, color: j.weightedScore >= 1 ? "var(--green)" : j.weightedScore >= 0 ? "var(--accent)" : "var(--red)", fontWeight: 700 }}>
+                                    {j.weightedScore > 0 ? `+${j.weightedScore}` : j.weightedScore}
+                                </div>
+                            </div>
+                        </div>
+                    ))}
+                    {jokePerformance.length === 0 && <div style={{ fontSize: 13, color: "var(--text3)", gridColumn: "1/-1" }}>Log performances in your shows to see detailed bit impact.</div>}
+                </div>
+            </div>
+
+            <div className="grid-half" style={{ gap: 24, marginBottom: 32 }}>
                 <div className="card" style={{ padding: 24 }}>
                     <div className="section-header" style={{ color: "var(--green)" }}><Target size={16} /> Consistent Killers</div>
                     {topKillers.length === 0 && <div style={{ fontSize: 13, color: "var(--text3)" }}>Perform more shows to generate data.</div>}

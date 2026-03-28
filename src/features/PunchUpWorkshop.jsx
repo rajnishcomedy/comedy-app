@@ -35,37 +35,43 @@ Respond ONLY as valid JSON, no markdown:
     // Since we don't have a valid API key built-in directly for Anthropic, we will mock the return for demonstration if it fails,
     // but keep the original logic intact.
     try {
-        const resp = await fetch("https://api.anthropic.com/v1/messages", {
-            method: "POST",
-            headers: { "Content-Type": "application/json", "x-api-key": localStorage.getItem("cws_anthropic_key") || "" },
+        const apiKey = localStorage.getItem('cws_anthropic_key') || '';
+        if (!apiKey) throw new Error('No API key');
+        const resp = await fetch('https://api.anthropic.com/v1/messages', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'x-api-key': apiKey,
+                'anthropic-version': '2023-06-01',
+                'anthropic-dangerous-direct-browser-access': 'true',
+            },
             body: JSON.stringify({
-                model: "claude-3-5-sonnet-20240620",
-                max_tokens: 1000,
-                messages: [{ role: "user", content: prompt }]
+                model: 'claude-sonnet-4-5',
+                max_tokens: 1200,
+                messages: [{ role: 'user', content: prompt }]
             })
         });
         const data = await resp.json();
         if (data.error) throw new Error(data.error.message);
-        const text = data.content?.map(b => b.text || "").join("") ?? "";
-        const clean = text.replace(/```json|```/g, "").trim();
+        const text = data.content?.map(b => b.text || '').join('') ?? '';
+        const clean = text.replace(/```json|```/g, '').trim();
         return JSON.parse(clean);
     } catch (err) {
-        console.warn("AI API Failed, returning mock data:", err);
-        // Mocking response to keep UI functional without API keys
+        console.warn('AI API Failed, returning mock data:', err);
         return new Promise(resolve => setTimeout(() => resolve({
             punchlines: [
-                { maker: "Association", punch: "Mock association punchline...", trigger: "punchline" },
-                { maker: "Pop Culture Link", punch: "Mock pop culture punchline...", trigger: "punchline" },
-                { maker: "Question", punch: "Mock question punchline...", trigger: "punchline" },
-                { maker: "Play on Words", punch: "Mock pun punchline...", trigger: "punchline" },
-                { maker: "Exaggeration", punch: "Mock exaggeration punchline...", trigger: "punchline" },
-                { maker: "Reversal", punch: "Mock reversal punchline...", trigger: "punchline" }
+                { maker: 'Association', punch: 'Dono cheezein same hain — improve karne ka koi plan nahi.', trigger: 'nahi' },
+                { maker: 'Pop Culture Link', punch: 'Babu Bhaiya bhi yahi karta — tension mat lo, solution bhi mat lo.', trigger: 'lo' },
+                { maker: 'Question', punch: 'Kyun? Kyunki failure ka bhi ek aesthetic hota hai.', trigger: 'hai' },
+                { maker: 'Play on Words', punch: 'Progress report mein dono A grade — A for Absent.', trigger: 'Absent' },
+                { maker: 'Exaggeration', punch: 'Itna consistent hoon main is field mein ki IIT wale study karte hain mujhse.', trigger: 'hain' },
+                { maker: 'Reversal', punch: 'Log kehte hain fail fast, learn fast — main fail karta hoon, so fast.', trigger: 'fast' },
             ]
-        }), 2000));
+        }), 1500));
     }
 }
 
-export default function PunchUpWorkshop({ jokes, setJokes }) {
+export default function PunchUpWorkshop({ jokes, updateJoke, toast }) {
     const queue = jokes.filter(j => j.status === "Punch-Up Needed" || j.status === "Raw");
     const [selected, setSelected] = useState(null);
     const [aiResults, setAiResults] = useState(null);
@@ -88,12 +94,19 @@ export default function PunchUpWorkshop({ jokes, setJokes }) {
         setLoading(false);
     };
 
-    const promoteWinner = () => {
+    const promoteWinner = async () => {
         if (!winner || !selected) return;
-        setJokes(js => js.map(j => j.id === selected ? { ...j, punch: winner, status: "Stage-Ready" } : j));
-        setWinner(""); setAiResults(null);
-        // In actual app, might want to automatically unselect it or advance to next
+        try {
+            await updateJoke(selected, { punch: winner, status: 'Stage-Ready' });
+            toast?.success('Winner applied — joke marked Stage-Ready!');
+            setWinner(''); setAiResults(null);
+        } catch (err) {
+            console.error('Failed to apply winner:', err);
+            toast?.error(err?.message || 'Failed to apply winner');
+        }
     };
+
+    const apiKey = localStorage.getItem('cws_anthropic_key') || '';
 
     const MAKERS_INFO = [
         { name: "Association", hint: "Link two associations of the topic. What does A share with B?" },
@@ -149,7 +162,7 @@ export default function PunchUpWorkshop({ jokes, setJokes }) {
                         </div>
                     </div>
 
-                    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 32 }}>
+                    <div className="grid-half" style={{ gap: 32 }}>
                         <div>
                             <div className="section-header">Manual alternatives (write 3)</div>
                             <div style={{ display: "flex", flexDirection: "column", gap: 16, marginBottom: 24 }}>
@@ -172,13 +185,20 @@ export default function PunchUpWorkshop({ jokes, setJokes }) {
 
                         <div>
                             <div className="section-header">AI Assistant</div>
-                            <div style={{ display: "flex", flexDirection: "column", gap: 16, padding: "24px 20px", background: "rgba(200, 241, 53, 0.05)", borderRadius: 16, border: "1px solid rgba(200, 241, 53, 0.2)", marginBottom: 24 }}>
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: 16, padding: '24px 20px', background: 'rgba(200, 241, 53, 0.05)', borderRadius: 16, border: '1px solid rgba(200, 241, 53, 0.2)', marginBottom: 24 }}>
                                 <div>
-                                    <div style={{ fontSize: 16, fontWeight: 600, color: "var(--accent)", marginBottom: 4 }}>Toplyn Punch-Up Runner</div>
-                                    <div style={{ fontSize: 13, color: "var(--text2)", lineHeight: 1.5 }}>Generates 6 brutally specific alternatives using Toplyn's joke structures. (Mocked response by default if API key is not in localStorage).</div>
+                                    <div style={{ fontSize: 16, fontWeight: 600, color: 'var(--accent)', marginBottom: 4 }}>Toplyn Punch-Up Runner</div>
+                                    <div style={{ fontSize: 13, color: 'var(--text2)', lineHeight: 1.5 }}>
+                                        {apiKey ? 'Generates 6 brutally specific alternatives using Toplyn\'s joke structures via Claude Sonnet.' : 'Demo mode: returns example Hinglish punchlines. Add your Anthropic API key in Account settings to enable real AI.'}
+                                    </div>
                                 </div>
-                                <Button onClick={runAI} variant="primary" icon={loading ? null : Zap} disabled={loading} style={{ alignSelf: "flex-start", transition: "all var(--trans-base)" }}>
-                                    {loading ? <div style={{ display: "flex", alignItems: "center", gap: 8 }}><Spinner size={16} color="#000" /> Generating…</div> : "Run AI"}
+                                {!apiKey && (
+                                    <div style={{ padding: '10px 14px', background: 'rgba(255,176,32,0.08)', border: '1px solid rgba(255,176,32,0.2)', borderRadius: 8, fontSize: 12, color: 'var(--amber)' }}>
+                                        ⚡ Add your Anthropic API key in <strong>Account → API Key</strong> to enable real AI punchlines.
+                                    </div>
+                                )}
+                                <Button onClick={runAI} variant='primary' icon={loading ? null : Zap} disabled={loading} style={{ alignSelf: 'flex-start' }}>
+                                    {loading ? <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}><Spinner size={16} color='#000' /> Generating…</div> : (apiKey ? 'Run AI' : 'Run Demo')}
                                 </Button>
                             </div>
 
