@@ -122,8 +122,8 @@ export default function QuickCapture({ addIdea, toast }) {
     return (
       <button
         onClick={() => setIsOpen(true)}
+        className="quick-capture-trigger"
         style={{
-          position: 'fixed', bottom: 24, right: 24,
           width: 56, height: 56, borderRadius: '50%',
           background: 'var(--accent)', color: '#000',
           display: 'flex', alignItems: 'center', justifyContent: 'center',

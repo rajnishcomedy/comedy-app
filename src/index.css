@@ -170,6 +170,12 @@ button {
   box-shadow: 0 8px 24px -8px rgba(0,0,0,0.5);
 }
 
+.quick-capture-trigger {
+  position: fixed;
+  bottom: 24px;
+  right: 24px;
+}
+
 .tag {
   display: inline-flex; align-items: center; justify-content: center;
   padding: 4px 10px; border-radius: var(--radius-full);
@@ -285,5 +291,10 @@ button {
     border-right: none !important;
     border-bottom: 1px solid var(--border);
     max-height: 250px;
+  }
+
+  .quick-capture-trigger {
+    bottom: 84px !important;
+    right: 16px !important;
   }
 }
